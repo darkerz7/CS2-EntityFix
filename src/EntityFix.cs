@@ -34,6 +34,95 @@ namespace CS2_EntityFix
 			timer = tim;
 		}
 	}
+	public class CViewControl
+	{
+		public CLogicRelay ViewControl;
+		public CEntityInstance? Target;
+		public List<CCSPlayerController> Players;
+		public CViewControl(CLogicRelay Entity)
+		{
+			ViewControl = Entity;
+			Players = new List<CCSPlayerController>();
+			var ents = Utilities.GetAllEntities();
+			foreach (var ent in ents.ToList())
+			{
+				if (ent != null && ent.IsValid && ent.Entity != null && string.Compare(ent.Entity.Name, ViewControl.Target) == 0)
+				{
+					Target = ent;
+					break;
+				}
+			}
+		}
+		~CViewControl()
+		{
+			DisableCameraAll();
+		}
+		public void EnableCamera(CCSPlayerController Activator)
+		{
+			Players.Add(Activator);
+			UpdateState(Activator, true);
+		}
+		public void DisableCamera(CCSPlayerController Activator)
+		{
+			Players.Remove(Activator);
+			UpdateState(Activator, false);
+		}
+		public void EnableCameraAll()
+		{
+			Utilities.GetPlayers().Where(p => p is { IsValid: true, IsBot: false, IsHLTV: false }).ToList().ForEach(pl =>
+			{
+				EnableCamera(pl);
+			});
+		}
+		public void DisableCameraAll()
+		{
+			Players.Where(p => p is { IsValid: true, IsBot: false, IsHLTV: false }).ToList().ForEach(pl =>
+			{
+				DisableCamera(pl);
+			});
+			Players.Clear();
+		}
+		public void UpdateState(CCSPlayerController cActivator, bool bEnable)
+		{
+			if (cActivator != null && cActivator.IsValid && Target != null && Target.IsValid)
+			{
+				if (cActivator.PlayerPawn.Value != null && cActivator.PlayerPawn.Value.IsValid && cActivator.PlayerPawn.Value.CameraServices != null)
+				{
+					if (bEnable) cActivator.PlayerPawn.Value.CameraServices.ViewEntity.Raw = Target.EntityHandle.Raw;
+					else cActivator.PlayerPawn.Value.CameraServices.ViewEntity.Raw = uint.MaxValue;
+					Utilities.SetStateChanged(cActivator.PlayerPawn.Value, "CBasePlayerPawn", "m_pCameraServices");
+				}
+				if ((ViewControl.Spawnflags & 64) != 0) // FOV
+				{
+					if (bEnable && (uint)ViewControl.Health >= 16 && (uint)ViewControl.Health <= 179)
+					{
+						cActivator.DesiredFOV = (uint)ViewControl.Health;
+					}
+					else cActivator.DesiredFOV = 90;
+					Utilities.SetStateChanged(cActivator, "CBasePlayerController", "m_iDesiredFOV");
+				}
+				if ((ViewControl.Spawnflags & 32) != 0 && cActivator.PlayerPawn.Value != null) // Freeze
+				{
+					if (bEnable) cActivator.PlayerPawn.Value.Flags |= (uint)PlayerFlags.FL_FROZEN;
+					else cActivator.PlayerPawn.Value.Flags &= ~(uint)PlayerFlags.FL_FROZEN;
+				}
+				if ((ViewControl.Spawnflags & 128) != 0) // Disarm
+				{
+					if (bEnable && cActivator.PlayerPawn.Value != null && cActivator.PlayerPawn.Value.IsValid && cActivator.PlayerPawn.Value.WeaponServices != null)
+					{
+						var activeweapon = cActivator.PlayerPawn.Value.WeaponServices.ActiveWeapon.Value;
+						if (activeweapon != null && activeweapon.IsValid)
+						{
+							activeweapon.NextPrimaryAttackTick = Math.Max(activeweapon.NextPrimaryAttackTick, Server.TickCount + 24);
+							Utilities.SetStateChanged(activeweapon, "CBasePlayerWeapon", "m_nNextPrimaryAttackTick");
+							activeweapon.NextSecondaryAttackTick = Math.Max(activeweapon.NextSecondaryAttackTick, Server.TickCount + 24);
+							Utilities.SetStateChanged(activeweapon, "CBasePlayerWeapon", "m_nNextSecondaryAttackTick");
+						}
+					}
+				}
+			}
+		}
+	}
 	[Flags]
 	public enum EquipFlags : uint
 	{
@@ -47,13 +136,14 @@ namespace CS2_EntityFix
 		public static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant, int> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
 		List<CGameUI> g_GameUI = new List<CGameUI>();
 		List<CIgnite> g_Ignite = new List<CIgnite>();
+		List<CViewControl> g_ViewControl = new List<CViewControl>();
 		float g_VelocityIgnite = 0.2f;
 		int g_DamageIgnite = 5;
 		string g_IgnitePath = "particles/burning_fx/env_fire_small.vpcf";
 		public override string ModuleName => "Entity Fix";
-		public override string ModuleDescription => "Fixes game_player_equip, game_ui, IgniteLifeTime";
+		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.0";
+		public override string ModuleVersion => "1.DZ.1";
 		public override void Load(bool hotReload)
 		{
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
@@ -84,31 +174,68 @@ namespace CS2_EntityFix
 		}
 		private void OnEntitySpawned_Listener(CEntityInstance entity)
 		{
-			if (!IsGameUI(entity)) return;
-			CGameUI gameui = new CGameUI(new CLogicCase(entity.Handle));
-			g_GameUI.Add(gameui);
+			if (IsGameUI(entity))
+			{
+				CGameUI gameui = new CGameUI(new CLogicCase(entity.Handle));
+				g_GameUI.Add(gameui);
+			}
+			else if (IsViewControl(entity))
+			{
+				CViewControl viewcontrol = new CViewControl(new CLogicRelay(entity.Handle));
+				viewcontrol.ViewControl.Disabled = false; //help mappers identify server fix
+				g_ViewControl.Add(viewcontrol);
+			}
 		}
 		private void OnEntityDeleted_Listener(CEntityInstance entity)
 		{
-			if (!IsGameUI(entity)) return;
-			CLogicCase gameui = new CLogicCase(entity.Handle);
-			if ((gameui.Spawnflags & 32) == 0)
+			if (IsGameUI(entity))
 			{
-				foreach (var GTest in g_GameUI.ToList())
+				CLogicCase gameui = new CLogicCase(entity.Handle);
+				if ((gameui.Spawnflags & 32) == 0)
 				{
-					if (GTest.GameUI == gameui)
+					foreach (var GTest in g_GameUI.ToList())
 					{
-						Server.NextFrame(() =>
+						if (GTest.GameUI == gameui)
 						{
-							if (GTest.cActivator != null)
-							{
-								GTest.GameUI.AcceptInput("Deactivate", GTest.cActivator, GTest.GameUI);
-							}
 							Server.NextFrame(() =>
 							{
-								g_GameUI.Remove(GTest);
+								if (GTest.cActivator != null)
+								{
+									GTest.GameUI.AcceptInput("Deactivate", GTest.cActivator, GTest.GameUI);
+								}
+								Server.NextFrame(() =>
+								{
+									g_GameUI.Remove(GTest);
+								});
 							});
+						}
+					}
+				}
+			}
+			else if (IsViewControl(entity))
+			{
+				CLogicRelay relay = new CLogicRelay(entity.Handle);
+				foreach (var vc in g_ViewControl.ToList())
+				{
+					if (vc.ViewControl == relay)
+					{
+						if (vc.Target != null && vc.Target.IsValid) vc.DisableCameraAll();
+						Server.NextFrame(() =>
+						{
+							g_ViewControl.Remove(vc);
 						});
+						break;
+					}
+				}
+			}
+			else if (IsTarget(entity))
+			{
+				foreach (var vc in g_ViewControl.ToList())
+				{
+					if (vc.Target == entity)
+					{
+						vc.DisableCameraAll();
+						break;
 					}
 				}
 			}
@@ -119,11 +246,12 @@ namespace CS2_EntityFix
 			{
 				if (GTest.cActivator != null)
 				{
-					var player = new CCSPlayerController(new CCSPlayerPawn(GTest.cActivator.Handle).Controller.Value.Handle);
+					var player = EntityIsPlayer(GTest.cActivator);
+					if (player == null) continue;
 					if((GTest.GameUI.Spawnflags & 256) != 0 && (player.Buttons & PlayerButtons.Jump) != 0)
 					{
 						GTest.GameUI.AcceptInput("Deactivate", GTest.cActivator, GTest.GameUI);
-						return;
+						continue;
 					}
 
 					PlayerButtons buttonChanged =  player.Buttons ^ GTest.LastButtonState;
@@ -176,86 +304,43 @@ namespace CS2_EntityFix
 					GTest.LastButtonState = player.Buttons;
 				}
 			}
+			foreach (var vc in g_ViewControl.ToList())
+			{
+				vc.Players.Where(p => p is { IsValid: true, IsBot: false, IsHLTV: false }).ToList().ForEach(pl =>
+				{
+					vc.UpdateState(pl, true);
+				});
+			}
 		}
 		private HookResult OnEventRoundStart(EventRoundStart @event, GameEventInfo info)
 		{
-			foreach (var IgniteCheck in g_Ignite.ToList())
-			{
-				if (IgniteCheck.timer != null)
-				{
-					IgniteCheck.timer.Kill();
-					IgniteCheck.timer = null;
-				}
-				if (IgniteCheck.cParticle != null && IgniteCheck.cParticle.IsValid)
-				{
-					IgniteCheck.cParticle.AcceptInput("Stop");
-					IgniteCheck.cParticle.Remove();
-				}
-				if (IgniteCheck.cEntity.DesignerName.CompareTo("player") == 0)
-				{
-					CCSPlayerPawn ccspawn = new CCSPlayerPawn(IgniteCheck.cEntity.Handle);
-					if (ccspawn != null && ccspawn.IsValid)
-					{
-						ccspawn.VelocityModifier = 1.0f;
-					}
-				}
-			}
+			foreach (var IgniteCheck in g_Ignite.ToList()) IgniteClear(IgniteCheck);
 			Server.NextFrame(g_Ignite.Clear);
 			return HookResult.Continue;
 		}
 		private HookResult OnEventRoundEnd(EventRoundEnd @event, GameEventInfo info)
 		{
 			g_GameUI.Clear();
-			foreach (var IgniteCheck in g_Ignite.ToList())
-			{
-				if (IgniteCheck.timer != null)
-				{
-					IgniteCheck.timer.Kill();
-					IgniteCheck.timer = null;
-				}
-				if (IgniteCheck.cParticle != null && IgniteCheck.cParticle.IsValid)
-				{
-					IgniteCheck.cParticle.AcceptInput("Stop");
-					IgniteCheck.cParticle.Remove();
-				}
-				if (IgniteCheck.cEntity.DesignerName.CompareTo("player") == 0)
-				{
-					CCSPlayerPawn ccspawn = new CCSPlayerPawn(IgniteCheck.cEntity.Handle);
-					if (ccspawn != null && ccspawn.IsValid)
-					{
-						ccspawn.VelocityModifier = 1.0f;
-					}
-				}
-			}
+			g_ViewControl.Clear();
+			foreach (var IgniteCheck in g_Ignite.ToList()) IgniteClear(IgniteCheck);
 			Server.NextFrame(g_Ignite.Clear);
 			return HookResult.Continue;
 		}
 		[GameEventHandler(mode: HookMode.Post)]
 		private HookResult OnEventPlayerDeathPost(EventPlayerDeath @event, GameEventInfo info)
 		{
-			if (@event.Userid != null && @event.Userid.Pawn != null)
-			{
-				foreach (var GTest in g_GameUI.ToList())
-				{
-					if (GTest.cActivator?.Index == @event.Userid.Pawn.Index)
-					{
-						GTest.GameUI.AcceptInput("Deactivate", GTest.cActivator, GTest.GameUI);
-					}
-				}
-			}
+			OnGameUIEventDeactivate(@event.Userid);
 			return HookResult.Continue;
 		}
 		[GameEventHandler]
 		private HookResult OnEventPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
 		{
-			if (@event.Userid != null && @event.Userid.Pawn != null)
+			OnGameUIEventDeactivate(@event.Userid);
+			if (@event.Userid != null && @event.Userid.IsValid)
 			{
-				foreach (var GTest in g_GameUI.ToList())
+				foreach (var vc in g_ViewControl.ToList())
 				{
-					if (GTest.cActivator?.Index == @event.Userid.Pawn.Index)
-					{
-						GTest.GameUI.AcceptInput("Deactivate", GTest.cActivator, GTest.GameUI);
-					}
+					if (vc.Target != null && vc.Target.IsValid) vc.DisableCamera(@event.Userid);
 				}
 			}
 			return HookResult.Continue;
@@ -281,14 +366,11 @@ namespace CS2_EntityFix
 				{
 					if (cInput.KeyValue.ToLower().CompareTo("use") == 0 || cInput.KeyValue.ToLower().CompareTo("triggerforactivatedplayer") == 0)
 					{
-						if (cActivator.DesignerName.CompareTo("player") == 0)
+						CCSPlayerController? cPlayer = EntityIsPlayer(cActivator);
+						if (cPlayer != null && IsPlayerAlive(cPlayer))
 						{
-							var player = new CCSPlayerController(new CCSPlayerPawn(cActivator.Handle).Controller.Value.Handle);
-							if (player != null && player.IsValid && IsPlayerAlive(player))
-							{
-								player.RemoveWeapons();
-								if (cInput.KeyValue.ToLower().CompareTo("triggerforactivatedplayer") == 0) player.GiveNamedItem(cValue.KeyValue);
-							}
+							cPlayer.RemoveWeapons();
+							if (cInput.KeyValue.ToLower().CompareTo("triggerforactivatedplayer") == 0) cPlayer.GiveNamedItem(cValue.KeyValue);
 						}
 					}else if(cInput.KeyValue.ToLower().CompareTo("triggerforallplayers") == 0)
 					{
@@ -300,11 +382,35 @@ namespace CS2_EntityFix
 				}
 			} else if(IsGameUI(new CEntityInstance(cEntity.EntityInstance.Handle)))
 			{
-				if (cInput.KeyValue.ToLower().CompareTo("activate") == 0) OnActivateGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle));
-				else if (cInput.KeyValue.ToLower().CompareTo("deactivate") == 0) OnDeactivateGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle));
-				//Console.WriteLine($"{cEntity.DesignerName}/{cInput.KeyValue}:{cActivator.Index}:{cCaller.Index}***{cValue.KeyValue}***");
+				if (cInput.KeyValue.ToLower().CompareTo("activate") == 0) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), true);
+				else if (cInput.KeyValue.ToLower().CompareTo("deactivate") == 0) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), false);
+			} else if (IsViewControl(new CEntityInstance(cEntity.EntityInstance.Handle)))
+			{
+				CLogicRelay relay = new CLogicRelay(cEntity.EntityInstance.Handle);
+				foreach (var vc in g_ViewControl.ToList())
+				{
+					if (vc.ViewControl == relay)
+					{
+						if (vc.Target != null && vc.Target.IsValid)
+						{
+							switch (cInput.KeyValue.ToLower())
+							{
+								case "enablecamera":
+									CCSPlayerController? cPlayerEC = EntityIsPlayer(cActivator);
+									if (cPlayerEC != null) vc.EnableCamera(cPlayerEC);
+									break;
+								case "disablecamera":
+									CCSPlayerController? cPlayerDC = EntityIsPlayer(cActivator);
+									if (cPlayerDC != null) vc.DisableCamera(cPlayerDC);
+									break;
+								case "enablecameraall": vc.EnableCameraAll(); break;
+								case "disablecameraall": vc.DisableCameraAll();  break;
+							}
+						}
+						break;
+					}
+				}
 			}
-			//Console.WriteLine($"{cEntity.DesignerName}/{cInput.KeyValue}:{cActivator.Index}:{cCaller.Index}***{cValue.KeyValue}***");
 			return HookResult.Continue;
 		}
 		void IgnitePawn(CEntityInstance cActivator, float fDuration)
@@ -353,38 +459,18 @@ namespace CS2_EntityFix
 									CBaseEntity pawn = new CBaseEntity(IgniteCheck.cEntity.Handle);
 									IgniteCheck.cParticle.Teleport(pawn.AbsOrigin, pawn.AbsRotation, pawn.AbsVelocity);
 								}
-								if (cActivatorBuf.DesignerName.CompareTo("player") == 0)
+								var player = EntityIsPlayer(cActivatorBuf);
+								if (player != null && player.PlayerPawn.Value != null)
 								{
-									CCSPlayerPawn ccspawn = new CCSPlayerPawn(cActivatorBuf.Handle);
-									if (ccspawn != null && ccspawn.IsValid)
-									{
-										ccspawn.VelocityModifier = g_VelocityIgnite;
-										ccspawn.Health -= g_DamageIgnite;
-										Utilities.SetStateChanged(ccspawn, "CBaseEntity", "m_iHealth");
-										if (ccspawn.Health <= 0) ccspawn.CommitSuicide(true, true);
-									}
+									player.PlayerPawn.Value.VelocityModifier *= g_VelocityIgnite;
+									player.PlayerPawn.Value.Health -= g_DamageIgnite;
+									Utilities.SetStateChanged(player.PlayerPawn.Value, "CBaseEntity", "m_iHealth");
+									if (player.PlayerPawn.Value.Health <= 0) player.PlayerPawn.Value.CommitSuicide(true, true);
 								}
 								//Console.WriteLine($"Ignite: {cActivatorBuf.Index}. Left:{IgniteCheck.fEnd - Server.EngineTime}");
 							} else
 							{
-								if (IgniteCheck.timer != null)
-								{
-									IgniteCheck.timer.Kill();
-									IgniteCheck.timer = null;
-								}
-								if (IgniteCheck.cParticle != null)
-								{
-									IgniteCheck.cParticle.AcceptInput("Stop");
-									IgniteCheck.cParticle.Remove();
-								}
-								if (IgniteCheck.cEntity.DesignerName.CompareTo("player") == 0)
-								{
-									CCSPlayerPawn ccspawn = new CCSPlayerPawn(IgniteCheck.cEntity.Handle);
-									if (ccspawn != null && ccspawn.IsValid)
-									{
-										ccspawn.VelocityModifier = 1.0f;
-									}
-								}
+								IgniteClear(IgniteCheck);
 								Server.NextFrame(() => g_Ignite.Remove(IgniteCheck));
 							}
 						}
@@ -394,15 +480,34 @@ namespace CS2_EntityFix
 			}, TimerFlags.STOP_ON_MAPCHANGE | TimerFlags.REPEAT));
 			g_Ignite.Add(cNewIgnite);
 		}
-		void OnActivateGameUI(CEntityInstance cActivator, CLogicCase cGameUI)
+		void IgniteClear(CIgnite IgniteCheck)
 		{
-			if (cActivator == null || !cActivator.IsValid || cGameUI == null || !cGameUI.IsValid) return;
+			if (IgniteCheck.timer != null)
+			{
+				IgniteCheck.timer.Kill();
+				IgniteCheck.timer = null;
+			}
+			if (IgniteCheck.cParticle != null && IgniteCheck.cParticle.IsValid)
+			{
+				IgniteCheck.cParticle.AcceptInput("Stop");
+				IgniteCheck.cParticle.Remove();
+			}
+			var player = EntityIsPlayer(IgniteCheck.cEntity);
+			if (player != null && player.PlayerPawn.Value != null)
+			{
+				player.PlayerPawn.Value.VelocityModifier = 1.0f;
+			}
+		}
+		void OnGameUI(CEntityInstance cActivator, CLogicCase cGameUI, bool bActivate)
+		{
+			if (cActivator == null || !cActivator.IsValid) return;
 			if ((cGameUI.Spawnflags & 32) != 0)
 			{
-				if (cActivator.DesignerName.CompareTo("player") == 0)
+				CCSPlayerController? cPlayer = EntityIsPlayer(cActivator);
+				if (cPlayer != null && cPlayer.PlayerPawn.Value != null)
 				{
-					CCSPlayerController cPlayer = new CCSPlayerController(new CCSPlayerPawn(cActivator.Handle).Controller.Value.Handle);
-					cPlayer.Flags = cPlayer.Flags | (1 << 6); //FL_ATCONTROLS (1<<6)
+					if (bActivate) cPlayer.PlayerPawn.Value.Flags |= (uint)PlayerFlags.FL_ATCONTROLS;
+					else cPlayer.PlayerPawn.Value.Flags &= ~(uint)PlayerFlags.FL_ATCONTROLS; //FL_ATCONTROLS (1<<6)
 				}
 			}
 			else
@@ -414,48 +519,56 @@ namespace CS2_EntityFix
 						GTest.cActivator = cActivator;
 						Server.NextFrame(() =>
 						{
-							if (cActivator != null || cActivator.IsValid && cGameUI != null && cGameUI.IsValid)
-								GTest.GameUI.AcceptInput("InValue", cActivator, GTest.GameUI, "PlayerOn");
+							if (cActivator != null && cActivator.IsValid && cGameUI != null && cGameUI.IsValid)
+								GTest.GameUI.AcceptInput("InValue", cActivator, GTest.GameUI, bActivate ? "PlayerOn" : "PlayerOff");
 						});
 					}
 				}
 			}
 		}
-		void OnDeactivateGameUI(CEntityInstance cActivator, CLogicCase cGameUI)
+		void OnGameUIEventDeactivate(CCSPlayerController? cPlayer)
 		{
-			if (cActivator == null || !cActivator.IsValid || cGameUI == null || !cGameUI.IsValid) return;
-			if ((cGameUI.Spawnflags & 32) != 0)
-			{
-				if (cActivator.DesignerName.CompareTo("player") == 0)
-				{
-					CCSPlayerController cPlayer = new CCSPlayerController(new CCSPlayerPawn(cActivator.Handle).Controller.Value.Handle);
-					cPlayer.Flags = cPlayer.Flags & (1 << 6); //FL_ATCONTROLS (1<<6)
-				}
-			}
-			else
+			if (cPlayer != null && cPlayer.IsValid && cPlayer.Pawn != null && cPlayer.Pawn.IsValid)
 			{
 				foreach (var GTest in g_GameUI.ToList())
 				{
-					if (GTest.GameUI == cGameUI)
-					{
-						GTest.cActivator = cActivator;
-						Server.NextFrame(() =>
-						{
-							if (cActivator != null || cActivator.IsValid && cGameUI != null && cGameUI.IsValid)
-							{
-								GTest.GameUI.AcceptInput("InValue", cActivator, GTest.GameUI, "PlayerOff");
-								GTest.cActivator = null;
-							}
-						});
-					}
+					if (GTest.cActivator?.Index == cPlayer.Pawn.Index) GTest.GameUI.AcceptInput("Deactivate", GTest.cActivator, GTest.GameUI);
 				}
 			}
 		}
-
 		public static bool IsGameUI(CEntityInstance entity)
 		{
 			if (entity != null && entity.IsValid && entity.DesignerName.CompareTo("logic_case") == 0 && !string.IsNullOrEmpty(entity.PrivateVScripts) && entity.PrivateVScripts.ToLower().CompareTo("game_ui") == 0) return true;
 			return false;
+		}
+		public static bool IsViewControl(CEntityInstance entity)
+		{
+			if (entity != null && entity.IsValid && entity.DesignerName.CompareTo("logic_relay") == 0 && !string.IsNullOrEmpty(entity.PrivateVScripts) && entity.PrivateVScripts.ToLower().CompareTo("point_viewcontrol") == 0) return true;
+			return false;
+		}
+		public bool IsTarget(CEntityInstance entity)
+		{
+			if (entity != null && entity.IsValid)
+			{
+				foreach (var vc in g_ViewControl.ToList())
+				{
+					if(vc.Target == entity) return true;
+				}
+			}
+			return false;
+		}
+		public static CCSPlayerController? EntityIsPlayer(CEntityInstance? entity)
+		{
+			if (entity != null && entity.IsValid && entity.DesignerName.CompareTo("player") == 0)
+			{
+				var pawn = new CCSPlayerPawn(entity.Handle);
+				if (pawn.Controller.Value != null && pawn.Controller.Value.IsValid)
+				{
+					var player = new CCSPlayerController(pawn.Controller.Value.Handle);
+					if (player != null && player.IsValid) return player;
+				}
+			}
+			return null;
 		}
 		public static bool IsPlayerAlive(CCSPlayerController controller)
 		{
