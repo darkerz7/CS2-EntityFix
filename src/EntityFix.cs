@@ -4,14 +4,26 @@ using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
+using System.Runtime.InteropServices;
 using static CounterStrikeSharp.API.Core.Listeners;
 
 namespace CS2_EntityFix
 {
-	public class CUtlSymbolLarge : NativeObject
+	/*public class CUtlSymbolLarge : NativeObject
 	{
 		public CUtlSymbolLarge(IntPtr pointer) : base(pointer) { }
 		public string KeyValue => Utilities.ReadStringUtf8(Handle + 0);
+	}*/
+	public class CUtlSymbolLarge : NativeObject
+	{
+		public CUtlSymbolLarge(IntPtr pointer) : base(pointer)
+		{
+			IntPtr ptr = Marshal.ReadIntPtr(pointer);
+			//KeyValue = ptr.ToString();
+			if (ptr == IntPtr.Zero || ptr < 200000000000) return;
+			KeyValue = Marshal.PtrToStringUTF8(ptr);
+		}
+		public string? KeyValue;
 	}
 	public class CGameUI
 	{
@@ -143,7 +155,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.1";
+		public override string ModuleVersion => "1.DZ.2";
 		public override void Load(bool hotReload)
 		{
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
