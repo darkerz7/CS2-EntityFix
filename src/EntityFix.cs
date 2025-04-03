@@ -25,26 +25,22 @@ namespace CS2_EntityFix
 		}
 		public string? KeyValue;
 	}
-	public class CGameUI
+	public class CInputData(IntPtr pointer) : NativeObject(pointer)
 	{
-		public CEntityInstance? cActivator;
-		public CLogicCase GameUI;
-		public PlayerButtons LastButtonState;
-		public CGameUI(CLogicCase gameUI){ cActivator = null; GameUI = gameUI; }
+		public CBaseEntity? Activator => new(Marshal.ReadIntPtr(Handle));
 	}
-	public class CIgnite
+	public class CGameUI(CLogicCase gameUI)
 	{
-		public CEntityInstance? cEntity;
-		public CParticleSystem? cParticle;
-		public double fEnd;
-		public CounterStrikeSharp.API.Modules.Timers.Timer? timer;
-		public CIgnite(CEntityInstance? cEnt, CParticleSystem? cPart, double fEnds, CounterStrikeSharp.API.Modules.Timers.Timer? tim)
-		{
-			cEntity = cEnt;
-			cParticle = cPart;
-			fEnd = fEnds;
-			timer = tim;
-		}
+		public CEntityInstance? cActivator = null;
+		public CLogicCase GameUI = gameUI;
+		public PlayerButtons LastButtonState;
+	}
+	public class CIgnite(CEntityInstance? cEnt, CParticleSystem? cPart, double fEnds, CounterStrikeSharp.API.Modules.Timers.Timer? tim)
+	{
+		public CEntityInstance? cEntity = cEnt;
+		public CParticleSystem? cParticle = cPart;
+		public double fEnd = fEnds;
+		public CounterStrikeSharp.API.Modules.Timers.Timer? timer = tim;
 	}
 	public class CViewControl
 	{
@@ -54,7 +50,7 @@ namespace CS2_EntityFix
 		public CViewControl(CLogicRelay Entity)
 		{
 			ViewControl = Entity;
-			Players = new List<CCSPlayerController>();
+			Players = [];
 			var ents = Utilities.GetAllEntities();
 			foreach (var ent in ents.ToList())
 			{
@@ -145,21 +141,23 @@ namespace CS2_EntityFix
 	}
 	public class EntityFix : BasePlugin
 	{
-		public static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant, int> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
-		List<CGameUI> g_GameUI = new List<CGameUI>();
-		List<CIgnite> g_Ignite = new List<CIgnite>();
-		List<CViewControl> g_ViewControl = new List<CViewControl>();
+		static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant, int> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
+		static MemoryFunctionVoid<CBaseEntity, CInputData> CBaseFilter_InputTestActivatorFunc = new(GameData.GetSignature("CBaseFilter_InputTestActivator"));
+		List<CGameUI> g_GameUI = [];
+		List<CIgnite> g_Ignite = [];
+		List<CViewControl> g_ViewControl = [];
 		float g_VelocityIgnite = 0.2f;
 		int g_DamageIgnite = 5;
 		string g_IgnitePath = "particles/burning_fx/env_fire_small.vpcf";
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.2";
+		public override string ModuleVersion => "1.DZ.3";
 		public override void Load(bool hotReload)
 		{
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
 			CEntityIdentity_AcceptInputFunc.Hook(OnInput, HookMode.Pre);
+			CBaseFilter_InputTestActivatorFunc.Hook(OnInputTestActivator, HookMode.Pre);
 			RegisterListener<OnEntitySpawned>(OnEntitySpawned_Listener);
 			RegisterListener<OnEntityDeleted>(OnEntityDeleted_Listener);
 			RegisterListener<OnTick>(OnOnTick_Listener);
@@ -172,6 +170,7 @@ namespace CS2_EntityFix
 		{
 			RemoveListener<OnServerPrecacheResources>(OnPrecacheResources);
 			CEntityIdentity_AcceptInputFunc.Unhook(OnInput, HookMode.Pre);
+			CBaseFilter_InputTestActivatorFunc.Unhook(OnInputTestActivator, HookMode.Pre);
 			RemoveListener<OnEntitySpawned>(OnEntitySpawned_Listener);
 			RemoveListener<OnEntityDeleted>(OnEntityDeleted_Listener);
 			RemoveListener<OnTick>(OnOnTick_Listener);
@@ -188,12 +187,12 @@ namespace CS2_EntityFix
 		{
 			if (IsGameUI(entity))
 			{
-				CGameUI gameui = new CGameUI(new CLogicCase(entity.Handle));
+				CGameUI gameui = new(new CLogicCase(entity.Handle));
 				g_GameUI.Add(gameui);
 			}
 			else if (IsViewControl(entity))
 			{
-				CViewControl viewcontrol = new CViewControl(new CLogicRelay(entity.Handle));
+				CViewControl viewcontrol = new(new CLogicRelay(entity.Handle));
 				viewcontrol.ViewControl.Disabled = false; //help mappers identify server fix
 				g_ViewControl.Add(viewcontrol);
 			}
@@ -202,7 +201,7 @@ namespace CS2_EntityFix
 		{
 			if (IsGameUI(entity))
 			{
-				CLogicCase gameui = new CLogicCase(entity.Handle);
+				CLogicCase gameui = new(entity.Handle);
 				if ((gameui.Spawnflags & 32) == 0)
 				{
 					foreach (var GTest in g_GameUI.ToList())
@@ -226,7 +225,7 @@ namespace CS2_EntityFix
 			}
 			else if (IsViewControl(entity))
 			{
-				CLogicRelay relay = new CLogicRelay(entity.Handle);
+				CLogicRelay relay = new(entity.Handle);
 				foreach (var vc in g_ViewControl.ToList())
 				{
 					if (vc.ViewControl == relay)
@@ -357,17 +356,24 @@ namespace CS2_EntityFix
 			}
 			return HookResult.Continue;
 		}
+		private HookResult OnInputTestActivator(DynamicHook hook)
+		{
+			//Console.WriteLine($"[EntityFix-Test]: Activator: {hook.GetParam<CInputData>(1).Activator?.DesignerName}");
+			if (hook.GetParam<CInputData>(1).Activator == null) return HookResult.Handled;
+
+			return HookResult.Continue;
+		}
 		private HookResult OnInput(DynamicHook hook)
 		{
 			var cEntity = hook.GetParam<CEntityIdentity>(0);
 			var cInput = hook.GetParam<CUtlSymbolLarge>(1);
+			if (string.IsNullOrEmpty(cInput.KeyValue)) return HookResult.Continue;
 			var cActivator = hook.GetParam<CEntityInstance>(2);
 			var cCaller = hook.GetParam<CEntityInstance>(3);
 			var cValue = new CUtlSymbolLarge(hook.GetParam<CVariant>(4).Handle);
-			if (cInput.KeyValue.ToLower().Contains("ignitel"))
+			if (cInput.KeyValue.Contains("ignitel", StringComparison.OrdinalIgnoreCase))
 			{
-				float fDuration;
-				if (float.TryParse(cValue.KeyValue, out fDuration))
+				if (float.TryParse(cValue.KeyValue, out float fDuration))
 				{
 					IgnitePawn(cActivator, fDuration);
 				}
@@ -382,7 +388,7 @@ namespace CS2_EntityFix
 						if (cPlayer != null && IsPlayerAlive(cPlayer))
 						{
 							cPlayer.RemoveWeapons();
-							if (cInput.KeyValue.ToLower().CompareTo("triggerforactivatedplayer") == 0) cPlayer.GiveNamedItem(cValue.KeyValue);
+							if (cInput.KeyValue.ToLower().CompareTo("triggerforactivatedplayer") == 0 && !string.IsNullOrEmpty(cValue.KeyValue)) cPlayer.GiveNamedItem(cValue.KeyValue);
 						}
 					}else if(cInput.KeyValue.ToLower().CompareTo("triggerforallplayers") == 0)
 					{
@@ -398,7 +404,7 @@ namespace CS2_EntityFix
 				else if (cInput.KeyValue.ToLower().CompareTo("deactivate") == 0) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), false);
 			} else if (IsViewControl(new CEntityInstance(cEntity.EntityInstance.Handle)))
 			{
-				CLogicRelay relay = new CLogicRelay(cEntity.EntityInstance.Handle);
+				CLogicRelay relay = new(cEntity.EntityInstance.Handle);
 				foreach (var vc in g_ViewControl.ToList())
 				{
 					if (vc.ViewControl == relay)
@@ -438,8 +444,8 @@ namespace CS2_EntityFix
 				}
 			}
 			
-			CEntityInstance cActivatorBuf = new CEntityInstance(cActivator.Handle);
-			CBaseEntity pawn = new CBaseEntity(cActivatorBuf.Handle);
+			CEntityInstance cActivatorBuf = new(cActivator.Handle);
+			CBaseEntity pawn = new(cActivatorBuf.Handle);
 			CParticleSystem? particle = null;
 			if (pawn != null && pawn.IsValid)
 			{
@@ -455,7 +461,7 @@ namespace CS2_EntityFix
 					particle.DispatchSpawn();
 				}
 			}
-			CIgnite cNewIgnite = new CIgnite(cActivatorBuf, particle, Server.EngineTime + fDuration, new CounterStrikeSharp.API.Modules.Timers.Timer(0.2f, () =>
+			CIgnite cNewIgnite = new(cActivatorBuf, particle, Server.EngineTime + fDuration, new CounterStrikeSharp.API.Modules.Timers.Timer(0.2f, () =>
 			{
 				try
 				{
@@ -468,7 +474,7 @@ namespace CS2_EntityFix
 							{
 								if (IgniteCheck.cParticle != null && IgniteCheck.cParticle.IsValid)
 								{
-									CBaseEntity pawn = new CBaseEntity(IgniteCheck.cEntity.Handle);
+									CBaseEntity pawn = new(IgniteCheck.cEntity.Handle);
 									IgniteCheck.cParticle.Teleport(pawn.AbsOrigin, pawn.AbsRotation, pawn.AbsVelocity);
 								}
 								var player = EntityIsPlayer(cActivatorBuf);
@@ -492,7 +498,8 @@ namespace CS2_EntityFix
 			}, TimerFlags.STOP_ON_MAPCHANGE | TimerFlags.REPEAT));
 			g_Ignite.Add(cNewIgnite);
 		}
-		void IgniteClear(CIgnite IgniteCheck)
+
+		static void IgniteClear(CIgnite IgniteCheck)
 		{
 			if (IgniteCheck.timer != null)
 			{

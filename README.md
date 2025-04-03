@@ -7,6 +7,7 @@ Fixes game_player_equip, game_ui, IgniteLifeTime, point_viewcontrol. Idea taken 
 3. Handles entity burning with IgniteLifeTime
 4. You can customize particle, time and burning damage -> `string g_IgnitePath`, `float g_VelocityIgnite`, `int g_DamageIgnite` and recompile plugin
 5. Adds a point_viewcontrol analog from cs:go [Cs2Fixes Wiki] (https://github.com/Source2ZE/CS2Fixes/wiki/Custom-Mapping-Features#point_viewcontrol-entity-implementation)
+6. Adds fix for TestActivator null activator crash [cs2Fixes commit] (https://github.com/Source2ZE/CS2Fixes/commit/eadd9ebfbad5ea8694a33ad4c46d53ee422babfe)
 
 ## Installation:
 1. Compile or copy CS2-EntityFix to `counterstrikesharp/plugins/CS2-EntityFix` folger
