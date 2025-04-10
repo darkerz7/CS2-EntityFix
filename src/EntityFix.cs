@@ -152,7 +152,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.3";
+		public override string ModuleVersion => "1.DZ.4";
 		public override void Load(bool hotReload)
 		{
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
@@ -377,20 +377,20 @@ namespace CS2_EntityFix
 				{
 					IgnitePawn(cActivator, fDuration);
 				}
-			} else if (cEntity.DesignerName.CompareTo("game_player_equip") == 0)
+			} else if (string.Equals(cEntity.DesignerName, "game_player_equip"))
 			{
 				var ent = new CGamePlayerEquip(cEntity.EntityInstance.Handle);
 				if (((EquipFlags)ent.Spawnflags).HasFlag(EquipFlags.SF_PLAYEREQUIP_STRIPFIRST))
 				{
-					if (cInput.KeyValue.ToLower().CompareTo("use") == 0 || cInput.KeyValue.ToLower().CompareTo("triggerforactivatedplayer") == 0)
+					if (string.Equals(cInput.KeyValue.ToLower(), "use") || string.Equals(cInput.KeyValue.ToLower(), "triggerforactivatedplayer"))
 					{
 						CCSPlayerController? cPlayer = EntityIsPlayer(cActivator);
 						if (cPlayer != null && IsPlayerAlive(cPlayer))
 						{
 							cPlayer.RemoveWeapons();
-							if (cInput.KeyValue.ToLower().CompareTo("triggerforactivatedplayer") == 0 && !string.IsNullOrEmpty(cValue.KeyValue)) cPlayer.GiveNamedItem(cValue.KeyValue);
+							if (string.Equals(cInput.KeyValue.ToLower(), "triggerforactivatedplayer") && !string.IsNullOrEmpty(cValue.KeyValue)) cPlayer.GiveNamedItem(cValue.KeyValue);
 						}
-					}else if(cInput.KeyValue.ToLower().CompareTo("triggerforallplayers") == 0)
+					}else if(string.Equals(cInput.KeyValue.ToLower(), "triggerforallplayers"))
 					{
 						Utilities.GetPlayers().Where(p => p is { IsValid: true, IsHLTV: false }).ToList().ForEach(pl =>
 						{
@@ -400,8 +400,8 @@ namespace CS2_EntityFix
 				}
 			} else if(IsGameUI(new CEntityInstance(cEntity.EntityInstance.Handle)))
 			{
-				if (cInput.KeyValue.ToLower().CompareTo("activate") == 0) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), true);
-				else if (cInput.KeyValue.ToLower().CompareTo("deactivate") == 0) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), false);
+				if (string.Equals(cInput.KeyValue.ToLower(), "activate")) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), true);
+				else if (string.Equals(cInput.KeyValue.ToLower(), "deactivate")) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), false);
 			} else if (IsViewControl(new CEntityInstance(cEntity.EntityInstance.Handle)))
 			{
 				CLogicRelay relay = new(cEntity.EntityInstance.Handle);
@@ -557,12 +557,12 @@ namespace CS2_EntityFix
 		}
 		public static bool IsGameUI(CEntityInstance entity)
 		{
-			if (entity != null && entity.IsValid && entity.DesignerName.CompareTo("logic_case") == 0 && !string.IsNullOrEmpty(entity.PrivateVScripts) && entity.PrivateVScripts.ToLower().CompareTo("game_ui") == 0) return true;
+			if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "logic_case") && !string.IsNullOrEmpty(entity.PrivateVScripts) && string.Equals(entity.PrivateVScripts.ToLower(), "game_ui")) return true;
 			return false;
 		}
 		public static bool IsViewControl(CEntityInstance entity)
 		{
-			if (entity != null && entity.IsValid && entity.DesignerName.CompareTo("logic_relay") == 0 && !string.IsNullOrEmpty(entity.PrivateVScripts) && entity.PrivateVScripts.ToLower().CompareTo("point_viewcontrol") == 0) return true;
+			if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "logic_relay") && !string.IsNullOrEmpty(entity.PrivateVScripts) && string.Equals(entity.PrivateVScripts.ToLower(), "point_viewcontrol")) return true;
 			return false;
 		}
 		public bool IsTarget(CEntityInstance entity)
@@ -578,7 +578,7 @@ namespace CS2_EntityFix
 		}
 		public static CCSPlayerController? EntityIsPlayer(CEntityInstance? entity)
 		{
-			if (entity != null && entity.IsValid && entity.DesignerName.CompareTo("player") == 0)
+			if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "player"))
 			{
 				var pawn = new CCSPlayerPawn(entity.Handle);
 				if (pawn.Controller.Value != null && pawn.Controller.Value.IsValid)
