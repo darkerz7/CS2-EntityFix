@@ -152,7 +152,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.4";
+		public override string ModuleVersion => "1.DZ.5";
 		public override void Load(bool hotReload)
 		{
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
@@ -535,7 +535,8 @@ namespace CS2_EntityFix
 				{
 					if (GTest.GameUI == cGameUI)
 					{
-						GTest.cActivator = cActivator;
+						if (bActivate) GTest.cActivator = cActivator;
+						else GTest.cActivator = null;
 						Server.NextFrame(() =>
 						{
 							if (cActivator != null && cActivator.IsValid && cGameUI != null && cGameUI.IsValid)
