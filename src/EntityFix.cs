@@ -1,5 +1,6 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Timers;
@@ -9,22 +10,7 @@ using static CounterStrikeSharp.API.Core.Listeners;
 
 namespace CS2_EntityFix
 {
-	/*public class CUtlSymbolLarge : NativeObject
-	{
-		public CUtlSymbolLarge(IntPtr pointer) : base(pointer) { }
-		public string KeyValue => Utilities.ReadStringUtf8(Handle + 0);
-	}*/
-	public class CUtlSymbolLarge : NativeObject
-	{
-		public CUtlSymbolLarge(IntPtr pointer) : base(pointer)
-		{
-			IntPtr ptr = Marshal.ReadIntPtr(pointer);
-			//KeyValue = ptr.ToString();
-			if (ptr == IntPtr.Zero || ptr < 200000000000) return;
-			KeyValue = Marshal.PtrToStringUTF8(ptr);
-		}
-		public string? KeyValue;
-	}
+	[MinimumApiVersion(322)]
 	public class CInputData(IntPtr pointer) : NativeObject(pointer)
 	{
 		public CBaseEntity? Activator => new(Marshal.ReadIntPtr(Handle));
@@ -152,7 +138,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.5";
+		public override string ModuleVersion => "1.DZ.6";
 		public override void Load(bool hotReload)
 		{
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
@@ -366,14 +352,15 @@ namespace CS2_EntityFix
 		private HookResult OnInput(DynamicHook hook)
 		{
 			var cEntity = hook.GetParam<CEntityIdentity>(0);
-			var cInput = hook.GetParam<CUtlSymbolLarge>(1);
-			if (string.IsNullOrEmpty(cInput.KeyValue)) return HookResult.Continue;
+			var sInput = hook.GetParam<CUtlSymbolLarge>(1).String;
+			if (string.IsNullOrEmpty(sInput)) return HookResult.Continue;
 			var cActivator = hook.GetParam<CEntityInstance>(2);
 			var cCaller = hook.GetParam<CEntityInstance>(3);
-			var cValue = new CUtlSymbolLarge(hook.GetParam<CVariant>(4).Handle);
-			if (cInput.KeyValue.Contains("ignitel", StringComparison.OrdinalIgnoreCase))
+			var cValue = hook.GetParam<CVariant>(4);
+			var sValue = cValue.FieldType == fieldtype_t.FIELD_CSTRING ? NativeAPI.GetStringFromSymbolLarge(cValue.Handle) : "";
+			if (sInput.Contains("ignitel", StringComparison.OrdinalIgnoreCase))
 			{
-				if (float.TryParse(cValue.KeyValue, out float fDuration))
+				if (float.TryParse(sValue, out float fDuration))
 				{
 					IgnitePawn(cActivator, fDuration);
 				}
@@ -382,15 +369,15 @@ namespace CS2_EntityFix
 				var ent = new CGamePlayerEquip(cEntity.EntityInstance.Handle);
 				if (((EquipFlags)ent.Spawnflags).HasFlag(EquipFlags.SF_PLAYEREQUIP_STRIPFIRST))
 				{
-					if (string.Equals(cInput.KeyValue.ToLower(), "use") || string.Equals(cInput.KeyValue.ToLower(), "triggerforactivatedplayer"))
+					if (string.Equals(sInput.ToLower(), "use") || string.Equals(sInput.ToLower(), "triggerforactivatedplayer"))
 					{
 						CCSPlayerController? cPlayer = EntityIsPlayer(cActivator);
 						if (cPlayer != null && IsPlayerAlive(cPlayer))
 						{
 							cPlayer.RemoveWeapons();
-							if (string.Equals(cInput.KeyValue.ToLower(), "triggerforactivatedplayer") && !string.IsNullOrEmpty(cValue.KeyValue)) cPlayer.GiveNamedItem(cValue.KeyValue);
+							if (string.Equals(sInput.ToLower(), "triggerforactivatedplayer") && !string.IsNullOrEmpty(sValue)) cPlayer.GiveNamedItem(sValue);
 						}
-					}else if(string.Equals(cInput.KeyValue.ToLower(), "triggerforallplayers"))
+					}else if(string.Equals(sInput.ToLower(), "triggerforallplayers"))
 					{
 						Utilities.GetPlayers().Where(p => p is { IsValid: true, IsHLTV: false }).ToList().ForEach(pl =>
 						{
@@ -400,8 +387,8 @@ namespace CS2_EntityFix
 				}
 			} else if(IsGameUI(new CEntityInstance(cEntity.EntityInstance.Handle)))
 			{
-				if (string.Equals(cInput.KeyValue.ToLower(), "activate")) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), true);
-				else if (string.Equals(cInput.KeyValue.ToLower(), "deactivate")) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), false);
+				if (string.Equals(sInput.ToLower(), "activate")) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), true);
+				else if (string.Equals(sInput.ToLower(), "deactivate")) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), false);
 			} else if (IsViewControl(new CEntityInstance(cEntity.EntityInstance.Handle)))
 			{
 				CLogicRelay relay = new(cEntity.EntityInstance.Handle);
@@ -411,7 +398,7 @@ namespace CS2_EntityFix
 					{
 						if (vc.Target != null && vc.Target.IsValid)
 						{
-							switch (cInput.KeyValue.ToLower())
+							switch (sInput.ToLower())
 							{
 								case "enablecamera":
 									CCSPlayerController? cPlayerEC = EntityIsPlayer(cActivator);
