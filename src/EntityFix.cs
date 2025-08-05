@@ -2,15 +2,18 @@
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Admin;
+using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using static CounterStrikeSharp.API.Core.Listeners;
 
 namespace CS2_EntityFix
 {
-	[MinimumApiVersion(322)]
+	[MinimumApiVersion(330)]
 	public class CInputData(IntPtr pointer) : NativeObject(pointer)
 	{
 		public CBaseEntity? Activator => new(Marshal.ReadIntPtr(Handle));
@@ -132,15 +135,18 @@ namespace CS2_EntityFix
 		List<CGameUI> g_GameUI = [];
 		List<CIgnite> g_Ignite = [];
 		List<CViewControl> g_ViewControl = [];
-		float g_VelocityIgnite = 0.2f;
-		int g_DamageIgnite = 5;
-		string g_IgnitePath = "particles/burning_fx/env_fire_small.vpcf";
+		ConfigJSON? cfg = new();
+		float g_VelocityIgnite = 0.45f;
+		float g_RepeatIgnite = 0.5f;
+		int g_DamageIgnite = 1;
+		string g_PathIgnite = "particles/burning_fx/env_fire_small.vpcf";
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.6";
+		public override string ModuleVersion => "1.DZ.7";
 		public override void Load(bool hotReload)
 		{
+			LoadCFG();
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
 			CEntityIdentity_AcceptInputFunc.Hook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Hook(OnInputTestActivator, HookMode.Pre);
@@ -154,6 +160,7 @@ namespace CS2_EntityFix
 		}
 		public override void Unload(bool hotReload)
 		{
+			RemoveCommand("css_entityfix_reload", OnReload);
 			RemoveListener<OnServerPrecacheResources>(OnPrecacheResources);
 			CEntityIdentity_AcceptInputFunc.Unhook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Unhook(OnInputTestActivator, HookMode.Pre);
@@ -165,9 +172,70 @@ namespace CS2_EntityFix
 			DeregisterEventHandler<EventPlayerDeath>(OnEventPlayerDeathPost);
 			DeregisterEventHandler<EventPlayerDisconnect>(OnEventPlayerDisconnect);
 		}
+		void LoadCFG()
+		{
+			string sConfig = $"{Path.Join(ModuleDirectory, "config.json")}";
+			string sData;
+			if (File.Exists(sConfig))
+			{
+				try
+				{
+					sData = File.ReadAllText(sConfig);
+					cfg = JsonSerializer.Deserialize<ConfigJSON>(sData);
+
+					if (cfg != null)
+					{
+						if (cfg.Ignite_Velocity >= 0.001f && cfg.Ignite_Velocity <= 1.0f) g_VelocityIgnite = cfg.Ignite_Velocity;
+						else g_VelocityIgnite = 0.45f;
+
+						if (cfg.Ignite_Repeat >= 0.1f && cfg.Ignite_Repeat <= 1.0f) g_RepeatIgnite = cfg.Ignite_Repeat;
+						else g_RepeatIgnite = 0.5f;
+
+						if (cfg.Ignite_Damage >= 1 && cfg.Ignite_Damage <= 1000) g_DamageIgnite = cfg.Ignite_Damage;
+						else g_DamageIgnite = 1;
+
+						if (!string.IsNullOrEmpty(cfg.Ignite_Particle)) g_PathIgnite = cfg.Ignite_Particle.Replace("\"", "");
+						else g_PathIgnite = "particles/burning_fx/env_fire_small.vpcf";
+					}
+				}
+				catch
+				{
+					cfg = null;
+					PrintToConsole($"Bad Config file ({sConfig})");
+				}
+			}
+			else
+			{
+				cfg = null;
+				PrintToConsole($"Config file ({sConfig}) not found");
+			}
+		}
+		class ConfigJSON
+		{
+			public float Ignite_Velocity { get; set; }
+			public float Ignite_Repeat { get; set; }
+			public int Ignite_Damage { get; set; }
+			public string? Ignite_Particle { get; set; }
+		}
+		[ConsoleCommand("css_entityfix_reload", "Reload config file of EntityFix")]
+		[RequiresPermissions("@css/root")]
+		public void OnReload(CCSPlayerController? player, CommandInfo command)
+		{
+			if (player != null && !player.IsValid) return;
+			LoadCFG();
+			if (cfg != null)
+			{
+				if (player != null)
+				{
+					command.ReplyToCommand(" \x0B[\x04 EntityFix \x0B]\x01 ConfigFile reloaded!");
+					PrintToConsole($"ConfigFile reloaded by {player.PlayerName} ({player.SteamID})");
+				}
+				else PrintToConsole($"ConfigFile reloaded!");
+			}
+		}
 		private void OnPrecacheResources(ResourceManifest manifest)
 		{
-			manifest.AddResource(g_IgnitePath);
+			manifest.AddResource(g_PathIgnite);
 		}
 		private void OnEntitySpawned_Listener(CEntityInstance entity)
 		{
@@ -439,7 +507,7 @@ namespace CS2_EntityFix
 				particle = Utilities.CreateEntityByName<CParticleSystem>("info_particle_system");
 				if (particle != null && particle.IsValid)
 				{
-					particle.EffectName = g_IgnitePath;
+					particle.EffectName = g_PathIgnite;
 					particle.TintCP = 1;
 					particle.Tint = System.Drawing.Color.FromArgb(255, 255, 0, 0);
 					particle.StartActive = true;
@@ -448,7 +516,7 @@ namespace CS2_EntityFix
 					particle.DispatchSpawn();
 				}
 			}
-			CIgnite cNewIgnite = new(cActivatorBuf, particle, Server.EngineTime + fDuration, new CounterStrikeSharp.API.Modules.Timers.Timer(0.2f, () =>
+			CIgnite cNewIgnite = new(cActivatorBuf, particle, Server.EngineTime + fDuration, new CounterStrikeSharp.API.Modules.Timers.Timer(g_RepeatIgnite, () =>
 			{
 				try
 				{
@@ -583,6 +651,18 @@ namespace CS2_EntityFix
 
 			if (controller.LifeState == (byte)LifeState_t.LIFE_ALIVE || controller.PawnIsAlive) return true;
 			else return false;
+		}
+		public static void PrintToConsole(string sMessage)
+		{
+			Console.ForegroundColor = (ConsoleColor)8;
+			Console.Write("[");
+			Console.ForegroundColor = (ConsoleColor)6;
+			Console.Write("EntityFix");
+			Console.ForegroundColor = (ConsoleColor)8;
+			Console.Write("] ");
+			Console.ForegroundColor = (ConsoleColor)3;
+			Console.WriteLine(sMessage);
+			Console.ResetColor();
 		}
 	}
 }

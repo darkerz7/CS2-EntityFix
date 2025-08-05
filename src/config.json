@@ -1,0 +1,6 @@
+{
+	"Ignite_Velocity": 0.45,
+	"Ignite_Repeat": 0.5,
+	"Ignite_Damage": 1,
+	"Ignite_Particle": "particles/burning_fx/env_fire_small.vpcf"
+}
