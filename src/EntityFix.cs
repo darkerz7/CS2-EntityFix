@@ -147,7 +147,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.8";
+		public override string ModuleVersion => "1.DZ.9";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
@@ -155,7 +155,16 @@ namespace CS2_EntityFix
 			CEntityIdentity_AcceptInputFunc.Hook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Hook(OnInputTestActivator, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Hook(OnGravityTouch, HookMode.Pre);
-			VirtualFunctions.CBaseTrigger_EndTouchFunc.Hook(OnTrigger_EndTouch, HookMode.Post);
+			HookEntityOutput("trigger_gravity", "OnEndTouch", (CEntityIOOutput output, string name, CEntityInstance activator, CEntityInstance caller, CVariant value, float delay) =>
+			{
+				var player = EntityIsPlayer(activator);
+				if (player != null && player.PlayerPawn.Value != null)
+				{
+					SetGravityScale(player.PlayerPawn.Value, 1.0f);
+					return HookResult.Handled;
+				}
+				return HookResult.Continue;
+			});
 			RegisterListener<OnEntitySpawned>(OnEntitySpawned_Listener);
 			RegisterListener<OnEntityDeleted>(OnEntityDeleted_Listener);
 			RegisterListener<OnTick>(OnOnTick_Listener);
@@ -172,7 +181,6 @@ namespace CS2_EntityFix
 			CEntityIdentity_AcceptInputFunc.Unhook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Unhook(OnInputTestActivator, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Unhook(OnGravityTouch, HookMode.Pre);
-			VirtualFunctions.CBaseTrigger_EndTouchFunc.Unhook(OnTrigger_EndTouch, HookMode.Post);
 			RemoveListener<OnEntitySpawned>(OnEntitySpawned_Listener);
 			RemoveListener<OnEntityDeleted>(OnEntityDeleted_Listener);
 			RemoveListener<OnTick>(OnOnTick_Listener);
@@ -482,20 +490,8 @@ namespace CS2_EntityFix
 			var player = EntityIsPlayer(hook.GetParam<CBaseEntity>(1));
 			if (player != null && player.PlayerPawn.Value != null && IsPlayerAlive(player))
 			{
-				SetGravityScale(player, hook.GetParam<CTriggerGravity>(0).GravityScale);
-			}
-			return HookResult.Continue;
-		}
-		private HookResult OnTrigger_EndTouch(DynamicHook hook)
-		{
-			var cTrigger = hook.GetParam<CBaseTrigger>(0);
-			if (cTrigger != null && cTrigger.IsValid && string.Equals(cTrigger.DesignerName, "trigger_gravity"))
-			{
-				var player = EntityIsPlayer(hook.GetParam<CBaseEntity>(1));
-				if (player != null && player.PlayerPawn.Value != null)
-				{
-					SetGravityScale(player, 1.0f);
-				}
+				SetGravityScale(player.PlayerPawn.Value, 0.01f); // Need to find "gravity" keyvalue of the trigger_gravity
+				return HookResult.Handled;
 			}
 			return HookResult.Continue;
 		}
