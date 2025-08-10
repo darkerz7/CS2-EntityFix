@@ -1,0 +1,10 @@
+{
+  "_Comment0": "Use only /",
+  "_Comment1": "Example for PathWorkshopFolger:",
+  "_Comment2": "C:/cs2_server/cs2-ds/game/bin/win64/steamapps/workshop/content/730",
+  "_Comment3": "Example for PathEntityFixFolger:",
+  "_Comment4": "C:/cs2_server/cs2-ds/game/csgo/addons/counterstrikesharp/plugins/CS2-EntityFix/maps",
+  
+  "PathWorkshopFolger": "",
+  "PathEntityFixFolger": ""
+}

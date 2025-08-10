@@ -59,4 +59,4 @@ jobs:
         generateReleaseNotes: true
         makeLatest: true
         body: |
-          ${{ env.PROJECT_NAME }} release ${{ env.BUILD_NUMBER }} for CS#. Fixes game_player_equip, game_ui, IgniteLifeTime.
+          ${{ env.PROJECT_NAME }} release ${{ env.BUILD_NUMBER }} for CS#. Fixes game_player_equip, game_ui, IgniteLifeTime, point_viewcontrol, trigger_gravity.

@@ -140,6 +140,7 @@ namespace CS2_EntityFix
 		List<CIgnite> g_Ignite = [];
 		List<CViewControl> g_ViewControl = [];
 		ConfigJSON? cfg = new();
+		Dictionary<string, float>? g_GravityCFG;
 		float g_VelocityIgnite = 0.45f;
 		float g_RepeatIgnite = 0.5f;
 		int g_DamageIgnite = 1;
@@ -147,11 +148,12 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.9";
+		public override string ModuleVersion => "1.DZ.10";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
+			RegisterListener<OnMapStart>(OnMapStart_Listener);
 			CEntityIdentity_AcceptInputFunc.Hook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Hook(OnInputTestActivator, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Hook(OnGravityTouch, HookMode.Pre);
@@ -178,6 +180,7 @@ namespace CS2_EntityFix
 		{
 			RemoveCommand("css_entityfix_reload", OnReload);
 			RemoveListener<OnServerPrecacheResources>(OnPrecacheResources);
+			RemoveListener<OnMapStart>(OnMapStart_Listener);
 			CEntityIdentity_AcceptInputFunc.Unhook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Unhook(OnInputTestActivator, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Unhook(OnGravityTouch, HookMode.Pre);
@@ -254,6 +257,22 @@ namespace CS2_EntityFix
 		private void OnPrecacheResources(ResourceManifest manifest)
 		{
 			manifest.AddResource(g_PathIgnite);
+		}
+		private void OnMapStart_Listener(string sMapName)
+		{
+			g_GravityCFG?.Clear();
+			string sConfig = $"{Path.Join(ModuleDirectory, $"maps/{sMapName}.json")}";
+			if (File.Exists(sConfig))
+			{
+				try
+				{
+					string sData = File.ReadAllText(sConfig);
+					g_GravityCFG = JsonSerializer.Deserialize<Dictionary<string, float>>(sData);
+				}
+				catch { g_GravityCFG = null;}
+				PrintToConsole($"Loaded GravityFix from {sConfig}");
+			}
+			else g_GravityCFG = null;
 		}
 		private void OnEntitySpawned_Listener(CEntityInstance entity)
 		{
@@ -490,7 +509,16 @@ namespace CS2_EntityFix
 			var player = EntityIsPlayer(hook.GetParam<CBaseEntity>(1));
 			if (player != null && player.PlayerPawn.Value != null && IsPlayerAlive(player))
 			{
-				SetGravityScale(player.PlayerPawn.Value, 0.01f); // Need to find "gravity" keyvalue of the trigger_gravity
+				float flValue = 0.01f;
+				if (g_GravityCFG != null && g_GravityCFG.Count > 0)
+				{
+					var gravity = hook.GetParam<CBaseEntity>(0);
+					if (!string.IsNullOrEmpty(gravity.UniqueHammerID) && g_GravityCFG.ContainsKey(gravity.UniqueHammerID)) // Need CS2-HammerIDFix
+					{
+						flValue = g_GravityCFG[gravity.UniqueHammerID];
+					}
+				}
+				SetGravityScale(player.PlayerPawn.Value, flValue);
 				return HookResult.Handled;
 			}
 			return HookResult.Continue;
