@@ -4,20 +4,23 @@ using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
-using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using static CounterStrikeSharp.API.Core.Listeners;
 
 namespace CS2_EntityFix
 {
 	[MinimumApiVersion(330)]
+	
 	public class CInputData(IntPtr pointer) : NativeObject(pointer)
 	{
-		public CBaseEntity? Activator => new(Marshal.ReadIntPtr(Handle));
+		public unsafe ref nint PActivator => ref Unsafe.AsRef<nint>((void*)Handle);
+		public unsafe ref nint PCaller => ref Unsafe.AsRef<nint>((void*)(Handle + 8));
+		public unsafe ref nint PValue => ref Unsafe.AsRef<nint>((void*)(Handle + 16));
+		public unsafe ref int NOutputID => ref Unsafe.AsRef<int>((void*)(Handle + 24));
 	}
 	public class CGameUI(CLogicCase gameUI)
 	{
@@ -131,14 +134,15 @@ namespace CS2_EntityFix
 	}
 	public class EntityFix : BasePlugin
 	{
-		static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant, int> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
-		static MemoryFunctionVoid<CBaseEntity, CInputData> CBaseFilter_InputTestActivatorFunc = new(GameData.GetSignature("CBaseFilter_InputTestActivator"));
-		static MemoryFunctionVoid<CBaseEntity, CBaseEntity> CTriggerGravity_GravityTouchFunc = new(GameData.GetSignature("CTriggerGravity_GravityTouch"));
-		static MemoryFunctionVoid<CBaseEntity, float> CBaseEntity_SetGravityScaleFunc = new(GameData.GetSignature("CBaseEntity_SetGravityScale"));
-		static Action<CBaseEntity, float> SetGravityScale = CBaseEntity_SetGravityScaleFunc.Invoke;
-		List<CGameUI> g_GameUI = [];
-		List<CIgnite> g_Ignite = [];
-		List<CViewControl> g_ViewControl = [];
+		readonly static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant, int> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
+		readonly static MemoryFunctionVoid<CBaseEntity, CInputData> CBaseFilter_InputTestActivatorFunc = new(GameData.GetSignature("CBaseFilter_InputTestActivator"));
+		readonly static MemoryFunctionVoid<CBaseEntity, CInputData> CLogicScript_InputRunScriptInputFunc = new(GameData.GetSignature("CLogicScript_InputRunScriptInput"));
+		readonly static MemoryFunctionVoid<CBaseEntity, CBaseEntity> CTriggerGravity_GravityTouchFunc = new(GameData.GetSignature("CTriggerGravity_GravityTouch"));
+		readonly static MemoryFunctionVoid<CBaseEntity, float> CBaseEntity_SetGravityScaleFunc = new(GameData.GetSignature("CBaseEntity_SetGravityScale"));
+		readonly static Action<CBaseEntity, float> SetGravityScale = CBaseEntity_SetGravityScaleFunc.Invoke;
+		readonly List<CGameUI> g_GameUI = [];
+		readonly List<CIgnite> g_Ignite = [];
+		readonly List<CViewControl> g_ViewControl = [];
 		ConfigJSON? cfg = new();
 		Dictionary<string, float>? g_GravityCFG;
 		float g_VelocityIgnite = 0.45f;
@@ -148,7 +152,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.10";
+		public override string ModuleVersion => "1.DZ.11";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
@@ -156,8 +160,9 @@ namespace CS2_EntityFix
 			RegisterListener<OnMapStart>(OnMapStart_Listener);
 			CEntityIdentity_AcceptInputFunc.Hook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Hook(OnInputTestActivator, HookMode.Pre);
+			CLogicScript_InputRunScriptInputFunc.Hook(OnInputRunScriptInput, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Hook(OnGravityTouch, HookMode.Pre);
-			HookEntityOutput("trigger_gravity", "OnEndTouch", (CEntityIOOutput output, string name, CEntityInstance activator, CEntityInstance caller, CVariant value, float delay) =>
+			HookEntityOutput("trigger_gravity", "OnEndTouch", (output, name, activator, caller, value, delay) =>
 			{
 				var player = EntityIsPlayer(activator);
 				if (player != null && player.PlayerPawn.Value != null)
@@ -183,6 +188,7 @@ namespace CS2_EntityFix
 			RemoveListener<OnMapStart>(OnMapStart_Listener);
 			CEntityIdentity_AcceptInputFunc.Unhook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Unhook(OnInputTestActivator, HookMode.Pre);
+			CLogicScript_InputRunScriptInputFunc.Unhook(OnInputRunScriptInput, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Unhook(OnGravityTouch, HookMode.Pre);
 			RemoveListener<OnEntitySpawned>(OnEntitySpawned_Listener);
 			RemoveListener<OnEntityDeleted>(OnEntityDeleted_Listener);
@@ -497,10 +503,24 @@ namespace CS2_EntityFix
 			}
 			return HookResult.Continue;
 		}
+		private HookResult OnInputRunScriptInput(DynamicHook hook)
+		{
+			CInputData input = hook.GetParam<CInputData>(1);
+
+			if (input.PActivator == IntPtr.Zero)
+				input.PActivator = hook.GetParam<CBaseEntity>(0).Handle;
+
+			if (input.PCaller == IntPtr.Zero)
+				input.PCaller = hook.GetParam<CBaseEntity>(0).Handle;
+
+			hook.SetParam(1, input);
+
+			return HookResult.Changed;
+		}
 		private HookResult OnInputTestActivator(DynamicHook hook)
 		{
 			//Console.WriteLine($"[EntityFix-Test]: Activator: {hook.GetParam<CInputData>(1).Activator?.DesignerName}");
-			if (hook.GetParam<CInputData>(1).Activator == null) return HookResult.Handled;
+			if (hook.GetParam<CInputData>(1).PActivator == IntPtr.Zero) return HookResult.Handled;
 
 			return HookResult.Continue;
 		}
@@ -513,9 +533,9 @@ namespace CS2_EntityFix
 				if (g_GravityCFG != null && g_GravityCFG.Count > 0)
 				{
 					var gravity = hook.GetParam<CBaseEntity>(0);
-					if (!string.IsNullOrEmpty(gravity.UniqueHammerID) && g_GravityCFG.ContainsKey(gravity.UniqueHammerID)) // Need CS2-HammerIDFix
+					if (!string.IsNullOrEmpty(gravity.UniqueHammerID) && g_GravityCFG.TryGetValue(gravity.UniqueHammerID, out float value)) // Need CS2-HammerIDFix
 					{
-						flValue = g_GravityCFG[gravity.UniqueHammerID];
+						flValue = value;
 					}
 				}
 				SetGravityScale(player.PlayerPawn.Value, flValue);
