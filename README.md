@@ -9,7 +9,6 @@ Fixes game_player_equip, game_ui, IgniteLifeTime, point_viewcontrol, trigger_gra
 5. Adds a point_viewcontrol analog from cs:go [Cs2Fixes Wiki](https://github.com/Source2ZE/CS2Fixes/wiki/Custom-Mapping-Features#point_viewcontrol-entity-implementation)
 6. Adds fix for TestActivator null activator crash [cs2Fixes commit](https://github.com/Source2ZE/CS2Fixes/commit/eadd9ebfbad5ea8694a33ad4c46d53ee422babfe)
 7. Fixes trigger_gravity. After the update 2025-07-29 gravity is not applied (Need configure with CS2-ParseGravity and install CS2-HammerIDFix) [cs2Fixes commit](https://github.com/Source2ZE/CS2Fixes/commit/1d58cf96ab486f9736906e377a9b5d57537d1882)
-8. Fix RunScriptInput crashing on null activator/caller [cs2Fixes commit](https://github.com/Source2ZE/CS2Fixes/commit/6adf856d2fd36e7cbc2a85e523bf298681332a77)
 
 ## Required packages:
 1. [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/) (Min version: 330)
