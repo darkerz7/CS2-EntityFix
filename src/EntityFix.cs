@@ -136,7 +136,6 @@ namespace CS2_EntityFix
 	{
 		readonly static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant, int> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
 		readonly static MemoryFunctionVoid<CBaseEntity, CInputData> CBaseFilter_InputTestActivatorFunc = new(GameData.GetSignature("CBaseFilter_InputTestActivator"));
-		readonly static MemoryFunctionVoid<CBaseEntity, CInputData> CLogicScript_InputRunScriptInputFunc = new(GameData.GetSignature("CLogicScript_InputRunScriptInput"));
 		readonly static MemoryFunctionVoid<CBaseEntity, CBaseEntity> CTriggerGravity_GravityTouchFunc = new(GameData.GetSignature("CTriggerGravity_GravityTouch"));
 		readonly static MemoryFunctionVoid<CBaseEntity, float> CBaseEntity_SetGravityScaleFunc = new(GameData.GetSignature("CBaseEntity_SetGravityScale"));
 		readonly static Action<CBaseEntity, float> SetGravityScale = CBaseEntity_SetGravityScaleFunc.Invoke;
@@ -152,7 +151,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.11";
+		public override string ModuleVersion => "1.DZ.12";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
@@ -160,7 +159,6 @@ namespace CS2_EntityFix
 			RegisterListener<OnMapStart>(OnMapStart_Listener);
 			CEntityIdentity_AcceptInputFunc.Hook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Hook(OnInputTestActivator, HookMode.Pre);
-			CLogicScript_InputRunScriptInputFunc.Hook(OnInputRunScriptInput, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Hook(OnGravityTouch, HookMode.Pre);
 			HookEntityOutput("trigger_gravity", "OnEndTouch", (output, name, activator, caller, value, delay) =>
 			{
@@ -188,7 +186,6 @@ namespace CS2_EntityFix
 			RemoveListener<OnMapStart>(OnMapStart_Listener);
 			CEntityIdentity_AcceptInputFunc.Unhook(OnInput, HookMode.Pre);
 			CBaseFilter_InputTestActivatorFunc.Unhook(OnInputTestActivator, HookMode.Pre);
-			CLogicScript_InputRunScriptInputFunc.Unhook(OnInputRunScriptInput, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Unhook(OnGravityTouch, HookMode.Pre);
 			RemoveListener<OnEntitySpawned>(OnEntitySpawned_Listener);
 			RemoveListener<OnEntityDeleted>(OnEntityDeleted_Listener);
@@ -502,20 +499,6 @@ namespace CS2_EntityFix
 				}
 			}
 			return HookResult.Continue;
-		}
-		private HookResult OnInputRunScriptInput(DynamicHook hook)
-		{
-			CInputData input = hook.GetParam<CInputData>(1);
-
-			if (input.PActivator == IntPtr.Zero)
-				input.PActivator = hook.GetParam<CBaseEntity>(0).Handle;
-
-			if (input.PCaller == IntPtr.Zero)
-				input.PCaller = hook.GetParam<CBaseEntity>(0).Handle;
-
-			hook.SetParam(1, input);
-
-			return HookResult.Changed;
 		}
 		private HookResult OnInputTestActivator(DynamicHook hook)
 		{
