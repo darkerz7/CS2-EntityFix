@@ -151,7 +151,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.12";
+		public override string ModuleVersion => "1.DZ.13";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
@@ -693,20 +693,17 @@ namespace CS2_EntityFix
 					else cPlayer.PlayerPawn.Value.Flags &= ~(uint)PlayerFlags.FL_ATCONTROLS; //FL_ATCONTROLS (1<<6)
 				}
 			}
-			else
+			foreach (var GTest in g_GameUI.ToList())
 			{
-				foreach (var GTest in g_GameUI.ToList())
+				if (GTest.GameUI == cGameUI)
 				{
-					if (GTest.GameUI == cGameUI)
+					if (bActivate) GTest.cActivator = cActivator;
+					else GTest.cActivator = null;
+					Server.NextFrame(() =>
 					{
-						if (bActivate) GTest.cActivator = cActivator;
-						else GTest.cActivator = null;
-						Server.NextFrame(() =>
-						{
-							if (cActivator != null && cActivator.IsValid && cGameUI != null && cGameUI.IsValid)
-								GTest.GameUI.AcceptInput("InValue", cActivator, GTest.GameUI, bActivate ? "PlayerOn" : "PlayerOff");
-						});
-					}
+						if (cActivator != null && cActivator.IsValid && cGameUI != null && cGameUI.IsValid)
+							GTest.GameUI.AcceptInput("InValue", cActivator, GTest.GameUI, bActivate ? "PlayerOn" : "PlayerOff");
+					});
 				}
 			}
 		}
