@@ -54,10 +54,6 @@ namespace CS2_EntityFix
 				}
 			}
 		}
-		~CViewControl()
-		{
-			DisableCameraAll();
-		}
 		public void EnableCamera(CCSPlayerController Activator)
 		{
 			Players.Add(Activator);
@@ -151,7 +147,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.13";
+		public override string ModuleVersion => "1.DZ.14";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
