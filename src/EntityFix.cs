@@ -147,7 +147,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.14";
+		public override string ModuleVersion => "1.DZ.15";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
@@ -298,13 +298,13 @@ namespace CS2_EntityFix
 					{
 						if (GTest.GameUI == gameui)
 						{
-							Server.NextFrame(() =>
+							Server.NextWorldUpdate(() =>
 							{
 								if (GTest.cActivator != null)
 								{
 									GTest.GameUI.AcceptInput("Deactivate", GTest.cActivator, GTest.GameUI);
 								}
-								Server.NextFrame(() =>
+								Server.NextWorldUpdate(() =>
 								{
 									g_GameUI.Remove(GTest);
 								});
@@ -321,7 +321,7 @@ namespace CS2_EntityFix
 					if (vc.ViewControl == relay)
 					{
 						if (vc.Target != null && vc.Target.IsValid) vc.DisableCameraAll();
-						Server.NextFrame(() =>
+						Server.NextWorldUpdate(() =>
 						{
 							g_ViewControl.Remove(vc);
 						});
@@ -466,7 +466,7 @@ namespace CS2_EntityFix
 		private HookResult OnEventRoundStart(EventRoundStart @event, GameEventInfo info)
 		{
 			foreach (var IgniteCheck in g_Ignite.ToList()) IgniteClear(IgniteCheck);
-			Server.NextFrame(g_Ignite.Clear);
+			Server.NextWorldUpdate(g_Ignite.Clear);
 			return HookResult.Continue;
 		}
 		private HookResult OnEventRoundEnd(EventRoundEnd @event, GameEventInfo info)
@@ -474,7 +474,7 @@ namespace CS2_EntityFix
 			g_GameUI.Clear();
 			g_ViewControl.Clear();
 			foreach (var IgniteCheck in g_Ignite.ToList()) IgniteClear(IgniteCheck);
-			Server.NextFrame(g_Ignite.Clear);
+			Server.NextWorldUpdate(g_Ignite.Clear);
 			return HookResult.Continue;
 		}
 		[GameEventHandler(mode: HookMode.Post)]
@@ -649,7 +649,7 @@ namespace CS2_EntityFix
 							} else
 							{
 								IgniteClear(IgniteCheck);
-								Server.NextFrame(() => g_Ignite.Remove(IgniteCheck));
+								Server.NextWorldUpdate(() => g_Ignite.Remove(IgniteCheck));
 							}
 						}
 					}
@@ -695,7 +695,7 @@ namespace CS2_EntityFix
 				{
 					if (bActivate) GTest.cActivator = cActivator;
 					else GTest.cActivator = null;
-					Server.NextFrame(() =>
+					Server.NextWorldUpdate(() =>
 					{
 						if (cActivator != null && cActivator.IsValid && cGameUI != null && cGameUI.IsValid)
 							GTest.GameUI.AcceptInput("InValue", cActivator, GTest.GameUI, bActivate ? "PlayerOn" : "PlayerOff");
