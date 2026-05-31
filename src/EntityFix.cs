@@ -13,7 +13,7 @@ using static CounterStrikeSharp.API.Core.Listeners;
 
 namespace CS2_EntityFix
 {
-	[MinimumApiVersion(330)]
+	[MinimumApiVersion(369)]
 	
 	public class CInputData(IntPtr pointer) : NativeObject(pointer)
 	{
@@ -147,7 +147,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.15";
+		public override string ModuleVersion => "1.DZ.16";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
