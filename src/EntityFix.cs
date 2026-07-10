@@ -130,7 +130,7 @@ namespace CS2_EntityFix
 	}
 	public class EntityFix : BasePlugin
 	{
-		readonly static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant, int> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
+		readonly static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
 		readonly static MemoryFunctionVoid<CBaseEntity, CInputData> CBaseFilter_InputTestActivatorFunc = new(GameData.GetSignature("CBaseFilter_InputTestActivator"));
 		readonly static MemoryFunctionVoid<CBaseEntity, CBaseEntity> CTriggerGravity_GravityTouchFunc = new(GameData.GetSignature("CTriggerGravity_GravityTouch"));
 		readonly static MemoryFunctionVoid<CBaseEntity, float> CBaseEntity_SetGravityScaleFunc = new(GameData.GetSignature("CBaseEntity_SetGravityScale"));
@@ -147,7 +147,7 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.16";
+		public override string ModuleVersion => "1.DZ.17";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
