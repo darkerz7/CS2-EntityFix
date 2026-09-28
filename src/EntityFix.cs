@@ -131,7 +131,6 @@ namespace CS2_EntityFix
 	public class EntityFix : BasePlugin
 	{
 		readonly static MemoryFunctionVoid<CEntityIdentity, CUtlSymbolLarge, CEntityInstance, CEntityInstance, CVariant, IntPtr, IntPtr> CEntityIdentity_AcceptInputFunc = new(GameData.GetSignature("CEntityIdentity_AcceptInput"));
-		//readonly static MemoryFunctionVoid<CBaseEntity, CInputData> CBaseFilter_InputTestActivatorFunc = new(GameData.GetSignature("CBaseFilter_InputTestActivator"));
 		readonly static MemoryFunctionVoid<CBaseEntity, CBaseEntity> CTriggerGravity_GravityTouchFunc = new(GameData.GetSignature("CTriggerGravity_GravityTouch"));
 		readonly static MemoryFunctionVoid<CBaseEntity, float> CBaseEntity_SetGravityScaleFunc = new(GameData.GetSignature("CBaseEntity_SetGravityScale"));
 		readonly static Action<CBaseEntity, float> SetGravityScale = CBaseEntity_SetGravityScaleFunc.Invoke;
@@ -147,14 +146,13 @@ namespace CS2_EntityFix
 		public override string ModuleName => "Entity Fix";
 		public override string ModuleDescription => "Fixes game_player_equip, game_ui, point_viewcontrol, IgniteLifeTime";
 		public override string ModuleAuthor => "DarkerZ [RUS]";
-		public override string ModuleVersion => "1.DZ.17.3";
+		public override string ModuleVersion => "1.DZ.17.4";
 		public override void Load(bool hotReload)
 		{
 			LoadCFG();
 			RegisterListener<OnServerPrecacheResources>(OnPrecacheResources);
 			RegisterListener<OnMapStart>(OnMapStart_Listener);
 			CEntityIdentity_AcceptInputFunc.Hook(OnInput, HookMode.Pre);
-			//CBaseFilter_InputTestActivatorFunc.Hook(OnInputTestActivator, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Hook(OnGravityTouch, HookMode.Pre);
 			HookEntityOutput("trigger_gravity", "OnEndTouch", (output, name, activator, caller, value, delay) =>
 			{
@@ -181,7 +179,6 @@ namespace CS2_EntityFix
 			RemoveListener<OnServerPrecacheResources>(OnPrecacheResources);
 			RemoveListener<OnMapStart>(OnMapStart_Listener);
 			CEntityIdentity_AcceptInputFunc.Unhook(OnInput, HookMode.Pre);
-			//CBaseFilter_InputTestActivatorFunc.Unhook(OnInputTestActivator, HookMode.Pre);
 			CTriggerGravity_GravityTouchFunc.Unhook(OnGravityTouch, HookMode.Pre);
 			RemoveListener<OnEntitySpawned>(OnEntitySpawned_Listener);
 			RemoveListener<OnEntityDeleted>(OnEntityDeleted_Listener);
@@ -393,68 +390,6 @@ namespace CS2_EntityFix
 
 		private void OnOnTick_Listener()
 		{
-			/*foreach (var GTest in g_GameUI.ToList())
-			{
-				if (GTest.cActivator != null)
-				{
-					var player = EntityIsPlayer(GTest.cActivator);
-					if (player == null) continue;
-					if((GTest.GameUI.Spawnflags & 256) != 0 && (player.Buttons & PlayerButtons.Jump) != 0)
-					{
-						GTest.GameUI.AcceptInput("Deactivate", GTest.cActivator, GTest.GameUI);
-						continue;
-					}
-
-					PlayerButtons buttonChanged =  player.Buttons ^ GTest.LastButtonState;
-
-					if ((buttonChanged & PlayerButtons.Forward) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Forward) != 0 ? "UnpressedForward" : "PressedForward");
-					}
-					if ((buttonChanged & PlayerButtons.Moveleft) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Moveleft) != 0 ? "UnpressedMoveLeft" : "PressedMoveLeft");
-					}
-					if ((buttonChanged & PlayerButtons.Back) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Back) != 0 ? "UnpressedBack" : "PressedBack");
-					}
-					if ((buttonChanged & PlayerButtons.Moveright) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Moveright) != 0 ? "UnpressedMoveRight" : "PressedMoveRight");
-					}
-					if ((buttonChanged & PlayerButtons.Attack) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Attack) != 0 ? "UnpressedAttack" : "PressedAttack");
-					}
-					if ((buttonChanged & PlayerButtons.Attack2) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Attack2) != 0 ? "UnpressedAttack2" : "PressedAttack2");
-					}
-					if ((buttonChanged & PlayerButtons.Speed) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Speed) != 0 ? "UnpressedSpeed" : "PressedSpeed");
-					}
-					if ((buttonChanged & PlayerButtons.Duck) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Duck) != 0 ? "UnpressedDuck" : "PressedDuck");
-					}
-					if ((buttonChanged & PlayerButtons.Use) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Use) != 0 ? "UnpressedUse" : "PressedUse");
-					}
-					if ((buttonChanged & PlayerButtons.Reload) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Reload) != 0 ? "UnpressedReload" : "PressedReload");
-					}
-					if ((buttonChanged & PlayerButtons.Inspect) != 0)
-					{
-						GTest.GameUI.AcceptInput("InValue", GTest.cActivator, GTest.GameUI, (GTest.LastButtonState & PlayerButtons.Inspect) != 0 ? "UnpressedLook" : "PressedLook");
-					}
-
-					GTest.LastButtonState = player.Buttons;
-				}
-			}*/
 			foreach (var vc in g_ViewControl.ToList())
 			{
 				vc.Players.Where(p => p is { IsValid: true, IsBot: false, IsHLTV: false }).ToList().ForEach(pl =>
@@ -496,13 +431,6 @@ namespace CS2_EntityFix
 			}
 			return HookResult.Continue;
 		}
-		/*private HookResult OnInputTestActivator(DynamicHook hook)
-		{
-			//Console.WriteLine($"[EntityFix-Test]: Activator: {hook.GetParam<CInputData>(1).Activator?.DesignerName}");
-			if (hook.GetParam<CInputData>(1).PActivator == IntPtr.Zero) return HookResult.Handled;
-
-			return HookResult.Continue;
-		}*/
 		private HookResult OnGravityTouch(DynamicHook hook)
 		{
 			var player = EntityIsPlayer(hook.GetParam<CBaseEntity>(1));
@@ -542,15 +470,15 @@ namespace CS2_EntityFix
 				var ent = new CGamePlayerEquip(cEntity.EntityInstance.Handle);
 				if (((EquipFlags)ent.Spawnflags).HasFlag(EquipFlags.SF_PLAYEREQUIP_STRIPFIRST))
 				{
-					if (string.Equals(sInput.ToLower(), "use") || string.Equals(sInput.ToLower(), "triggerforactivatedplayer"))
+					if (string.Equals(sInput, "use", StringComparison.OrdinalIgnoreCase) || string.Equals(sInput, "triggerforactivatedplayer", StringComparison.OrdinalIgnoreCase))
 					{
 						CCSPlayerController? cPlayer = EntityIsPlayer(cActivator);
 						if (cPlayer != null && IsPlayerAlive(cPlayer))
 						{
 							cPlayer.RemoveWeapons();
-							if (string.Equals(sInput.ToLower(), "triggerforactivatedplayer") && !string.IsNullOrEmpty(sValue)) cPlayer.GiveNamedItem(sValue);
+							if (string.Equals(sInput, "triggerforactivatedplayer", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(sValue)) cPlayer.GiveNamedItem(sValue);
 						}
-					}else if(string.Equals(sInput.ToLower(), "triggerforallplayers"))
+					}else if(string.Equals(sInput, "triggerforallplayers", StringComparison.OrdinalIgnoreCase))
 					{
 						Utilities.GetPlayers().Where(p => p is { IsValid: true, IsHLTV: false }).ToList().ForEach(pl =>
 						{
@@ -560,8 +488,8 @@ namespace CS2_EntityFix
 				}
 			} else if(IsGameUI(new CEntityInstance(cEntity.EntityInstance.Handle)))
 			{
-				if (string.Equals(sInput.ToLower(), "activate")) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), true);
-				else if (string.Equals(sInput.ToLower(), "deactivate")) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), false);
+				if (string.Equals(sInput, "activate", StringComparison.OrdinalIgnoreCase)) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), true);
+				else if (string.Equals(sInput, "deactivate", StringComparison.OrdinalIgnoreCase)) OnGameUI(cActivator, new CLogicCase(cEntity.EntityInstance.Handle), false);
 			} else if (IsViewControl(new CEntityInstance(cEntity.EntityInstance.Handle)))
 			{
 				CLogicRelay relay = new(cEntity.EntityInstance.Handle);
@@ -588,8 +516,12 @@ namespace CS2_EntityFix
 						break;
 					}
 				}
-			}
-			return HookResult.Continue;
+			} else if (cEntity.DesignerName.StartsWith("filter_") && string.Equals(sInput, "TestActivator", StringComparison.OrdinalIgnoreCase) && cActivator.Handle == IntPtr.Zero)
+			{
+				//If null activator (player disconnected & pawn removed), block the real TestActivator function from executing and crashing the server
+				return HookResult.Stop;
+            }
+            return HookResult.Continue;
 		}
 		void IgnitePawn(CEntityInstance cActivator, float fDuration)
 		{
@@ -715,12 +647,12 @@ namespace CS2_EntityFix
 		}
 		public static bool IsGameUI(CEntityInstance entity)
 		{
-			if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "logic_case") && !string.IsNullOrEmpty(entity.PrivateVScripts) && string.Equals(entity.PrivateVScripts.ToLower(), "game_ui")) return true;
+			if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "logic_case") && !string.IsNullOrEmpty(entity.PrivateVScripts) && string.Equals(entity.PrivateVScripts, "game_ui", StringComparison.OrdinalIgnoreCase)) return true;
 			return false;
 		}
 		public static bool IsViewControl(CEntityInstance entity)
 		{
-			if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "logic_relay") && !string.IsNullOrEmpty(entity.PrivateVScripts) && string.Equals(entity.PrivateVScripts.ToLower(), "point_viewcontrol")) return true;
+			if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "logic_relay") && !string.IsNullOrEmpty(entity.PrivateVScripts) && string.Equals(entity.PrivateVScripts, "point_viewcontrol", StringComparison.OrdinalIgnoreCase)) return true;
 			return false;
 		}
 		public bool IsTarget(CEntityInstance entity)
